@@ -76,3 +76,52 @@ def test_history_capped():
             for i in range(gs.HISTORY_LIMIT + 10):
                 ai.send(f"m{i}")
             assert ai.history_size <= gs.HISTORY_LIMIT
+            # After trimming, session must still start with a user turn (Gemini 400 otherwise).
+            assert ai._history[0]["role"] == "user"
+
+
+def test_personality_keywords():
+    s = gs.SYSTEM_INSTRUCTION
+    for kw in (
+        "GOJO",
+        "Thanglish",
+        "Tamil",
+        "honestly",
+        "conversation history",
+        "fabricate",
+        "frustrated",
+        "Fictional",
+        "da",
+    ):
+        assert kw.lower() in s.lower(), kw
+
+
+def test_blocked_response_friendly():
+    class BlockedResp:
+        @property
+        def text(self):
+            raise ValueError("blocked for safety; internal details here")
+
+    with mock.patch("google.genai.Client") as client:
+        client.return_value.models.generate_content.return_value = BlockedResp()
+        with mock.patch.dict(os.environ, {"GEMINI_API_KEY": "fake-key"}):
+            try:
+                gs.GojoAI().send("hi")
+            except gs.GojoAIError as e:
+                msg = str(e)
+                assert "blocked" in msg.lower() or "rephrase" in msg
+                assert "internal details" not in msg
+            else:
+                raise AssertionError("expected GojoAIError")
+
+
+def test_weird_code_no_crash():
+    with mock.patch("google.genai.Client") as client:
+        client.return_value.models.generate_content.side_effect = FakeAPIError("weird-code", "x")
+        with mock.patch.dict(os.environ, {"GEMINI_API_KEY": "fake-key"}):
+            try:
+                gs.GojoAI().send("hi")
+            except gs.GojoAIError as e:
+                assert len(str(e)) > 10
+            else:
+                raise AssertionError("expected GojoAIError")

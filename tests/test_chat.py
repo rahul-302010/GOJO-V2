@@ -6,6 +6,7 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 from PySide6.QtCore import QThreadPool
 from PySide6.QtWidgets import QApplication
 
+from core.gemini_service import GojoAIError
 from ui.chat_window import THINKING_TEXT, ChatWindow
 
 
@@ -20,7 +21,12 @@ class FakeAI:
 
 class FailAI:
     def send(self, text):
-        raise RuntimeError("friendly failure")
+        raise GojoAIError("friendly failure")
+
+
+class BoomAI:
+    def send(self, text):
+        raise ValueError("RAW_INTERNAL_DETAIL_12345")
 
 
 def _drain():
@@ -81,6 +87,21 @@ def test_chat_error_path():
     _drain()
     texts = _texts(w)
     assert texts == ["boom", "friendly failure"], texts
+    assert w.input.isEnabled() and not w._busy
+    w.close()
+
+
+def test_chat_unexpected_error_masked():
+    app = QApplication.instance() or QApplication([])
+    w = ChatWindow()
+    w._ai = BoomAI()
+    w.show()
+    w.input.setText("boom2")
+    w.send()
+    _drain()
+    texts = _texts(w)
+    assert "RAW_INTERNAL_DETAIL_12345" not in texts, texts
+    assert texts[-1] == "Something went wrong talking to Gemini - try again.", texts
     assert w.input.isEnabled() and not w._busy
     w.close()
 

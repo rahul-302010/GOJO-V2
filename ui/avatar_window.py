@@ -4,6 +4,7 @@ from PySide6.QtGui import QPixmap
 from PySide6.QtWidgets import QLabel, QWidget
 
 from core.assets import expression_path
+from core.expressions import DEFAULT_STATE
 
 AVATAR_NAME = "idle"  # most neutral existing asset, full legs
 AVATAR_PX = 150
@@ -37,7 +38,28 @@ class AvatarWindow(QWidget):
             self.resize(AVATAR_PX, AVATAR_PX)
         self._press_pos = None
         self._press_global = None
+        self._current = AVATAR_NAME
         self._place_bottom_right()
+
+    def set_expression(self, state: str):
+        """Swap avatar art by semantic state. UI thread only; skips same-state reloads."""
+        from core.expressions import resolve_asset
+
+        stem = resolve_asset(state)
+        if stem == self._current:
+            return  # already showing - no reload, no flicker
+        try:
+            pm = QPixmap(str(expression_path(stem)))
+            if pm.isNull():
+                raise FileNotFoundError(stem)
+            pm = pm.scaled(AVATAR_PX, AVATAR_PX, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+            self.label.setPixmap(pm)
+            self.resize(pm.size())
+            self._current = stem
+        except Exception:
+            self._current = None  # force fallback reload
+            if stem != AVATAR_NAME:
+                self.set_expression(DEFAULT_STATE)
 
     def _place_bottom_right(self):
         try:
@@ -84,8 +106,8 @@ class AvatarWindow(QWidget):
         super().mouseReleaseEvent(e)
 
     def on_avatar_clicked(self):
-        """Stub for future chat window. Log only for now."""
-        print("[GOJO] avatar clicked (chat coming later)", flush=True)
+        """Notify lifecycle to open/focus the chat window."""
+        print("[GOJO] avatar clicked - opening chat", flush=True)
         self.clicked.emit()
 
     def closeEvent(self, e):

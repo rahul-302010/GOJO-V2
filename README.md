@@ -31,14 +31,14 @@ python main.py
    Or set the `GEMINI_API_KEY` environment variable instead.
 3. `pip install -r requirements.txt` then `python main.py`.
 
-- Model: `gemini-3.8-flash` (free tier, Google-recommended for new projects, verified 2026-10).
-  Change it in `core/gemini_service.py` -> `MODEL` if Google retires it.
+- Model: `gemini-3.5-flash-lite` (free tier, fastest lane, no thinking pause).
+  Swap to `gemini-3.8-flash` in `core/gemini_service.py` -> `MODEL` for smarter-but-slower replies.
 - Personality: confident/playful/helpful/respectful, replies English or Tamil/Thanglish per user's message.
 - History: current chat session only (capped at 40 messages). No persistence.
 - Errors (missing key / offline / quota / API) show friendly messages; the key is never printed.
 
 ## Tests
 ```
-python -c "from tests.test_assets import *; from tests.test_avatar import *; from tests.test_chat import *; from tests.test_gemini_service import *; test_expressions_found(); test_avatar_loads(); test_avatar_window_flags(); test_chat_ai_send_flow(); test_chat_error_path(); test_chat_busy_blocks_duplicate(); test_missing_key_friendly_error_no_client(); test_success_reply_and_history(); test_rate_limit_friendly(); test_bad_key_friendly(); test_history_capped(); print('ALL PASSED')"
+python -c "import os; os.environ['QT_QPA_PLATFORM']='offscreen'; from tests.test_assets import test_expressions_found; from tests.test_avatar import test_avatar_loads, test_avatar_window_flags; from tests.test_chat import test_chat_ai_send_flow, test_chat_error_path, test_chat_unexpected_error_masked, test_chat_busy_blocks_duplicate; from tests.test_gemini_service import test_missing_key_friendly_error_no_client, test_success_reply_and_history, test_rate_limit_friendly, test_bad_key_friendly, test_history_capped, test_personality_keywords, test_blocked_response_friendly, test_weird_code_no_crash; test_expressions_found(); test_avatar_loads(); test_avatar_window_flags(); test_chat_ai_send_flow(); test_chat_error_path(); test_chat_unexpected_error_masked(); test_chat_busy_blocks_duplicate(); test_missing_key_friendly_error_no_client(); test_success_reply_and_history(); test_rate_limit_friendly(); test_bad_key_friendly(); test_history_capped(); test_personality_keywords(); test_blocked_response_friendly(); test_weird_code_no_crash(); print('ALL 15 PASSED')"
 ```
 AI tests use mocks - no network or real key needed.

@@ -27,6 +27,10 @@ def run() -> int:
         try:
             if chat is None:
                 chat = ChatWindow()
+                try:
+                    chat.expression_changed.connect(win.set_expression)
+                except Exception:
+                    pass
             if chat.isHidden():
                 # Place left of avatar, keep inside available screen.
                 try:
@@ -57,6 +61,13 @@ def run() -> int:
     try:
         return app.exec()
     finally:
+        try:
+            # Don't let a pending network call block app shutdown.
+            from PySide6.QtCore import QThreadPool
+
+            QThreadPool.globalInstance().waitForDone(3000)
+        except Exception:
+            pass
         try:
             if chat is not None:
                 chat.close()

@@ -12,7 +12,8 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from core.gemini_service import GojoAI
+from core.expressions import classify
+from core.gemini_service import GojoAI, GojoAIError
 
 CYAN = (159, 216, 255)
 HUD_CUT = 10
@@ -34,7 +35,7 @@ def _hud_path(r: QRect, cut: int) -> QPainterPath:
 
 
 class _AIWorkerSignals(QObject):
-    done = Signal(str)
+    done = Signal(str, str)  # reply, expression_state
     failed = Signal(str)
 
 
@@ -50,13 +51,23 @@ class _AIWorker(QRunnable):
     def run(self):
         try:
             reply = self._ai.send(self._text)
-        except Exception as e:  # GojoAIError (friendly) or unexpected
+        except GojoAIError as e:
             self.signals.failed.emit(str(e))
+        except Exception:
+            # Never surface raw exception text in the UI.
+            self.signals.failed.emit("Something went wrong talking to Gemini - try again.")
         else:
-            self.signals.done.emit(reply)
+            # Pure local classification - safe on this worker thread.
+            try:
+                state = classify(self._text, reply)
+            except Exception:
+                state = "idle"
+            self.signals.done.emit(reply, state)
 
 
 class ChatWindow(QWidget):
+    expression_changed = Signal(str)  # semantic state for the avatar (UI thread)
+
     def __init__(self):
         super().__init__(None)
         self.setWindowTitle("GOJO chat")
@@ -262,6 +273,7 @@ class ChatWindow(QWidget):
             " font-style: italic; border: none; padding: 2px 4px; }"
         )
         self._insert(self._status)
+        self.expression_changed.emit("thinking")
         worker = _AIWorker(self._ai, text)
         worker.signals.done.connect(self._on_reply)
         worker.signals.failed.connect(self._on_error)
@@ -279,12 +291,20 @@ class ChatWindow(QWidget):
         self.send_btn.setEnabled(True)
         self.input.setFocus()
 
-    def _on_reply(self, reply: str):
+    def _on_reply(self, reply: str, state: str):
         self._end_status()
         self._bubble(reply, mine=False)
+        try:
+            self.expression_changed.emit(state or "idle")
+        except Exception:
+            pass
         self._restore_controls()
 
     def _on_error(self, message: str):
         self._end_status()
         self._bubble(message, mine=False, error=True)
+        try:
+            self.expression_changed.emit("serious")
+        except Exception:
+            pass
         self._restore_controls()
